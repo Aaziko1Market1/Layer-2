@@ -2,6 +2,8 @@ import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
 import { Server as SocketServer } from 'socket.io';
 import { env } from './config/env';
 import logger from './utils/logger';
@@ -82,6 +84,16 @@ app.get('/health', async (_req, res) => {
     res.status(503).json({ status: 'unhealthy' });
   }
 });
+
+// Serve built React dashboard (production / Docker)
+const dashboardDist = path.join(__dirname, '..', 'dashboard', 'dist');
+if (fs.existsSync(dashboardDist)) {
+  app.use(express.static(dashboardDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(dashboardDist, 'index.html'));
+  });
+  console.log(`Dashboard served from ${dashboardDist}`);
+}
 
 // 404 + Error handler
 app.use(notFoundHandler);
