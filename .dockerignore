@@ -1,0 +1,15 @@
+node_modules
+dashboard/node_modules
+dist
+dashboard/dist
+coverage
+logs
+.env
+*.log
+.git
+.gitignore
+data-pipeline/__pycache__
+data-pipeline/*.pyc
+tests
+.vscode
+.idea
