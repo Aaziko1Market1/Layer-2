@@ -616,10 +616,15 @@ TASK: ${stageInstructions[stage]}
 STRICT RULES:
 - Output ONLY the email body text — no subject line, no meta-commentary
 - Open with "Hi [Contact Name / Team]," — use buyer's actual company name naturally
-- Sign off as: "Arjun Sharma | Senior Trade Consultant | Aaziko | arjun@aaziko.com"
+- End with a natural human sign-off exactly like this (no pipes, no bars):
+  Best regards,
+  Arjun Sharma
+  Senior Trade Consultant, Aaziko
+  ${env.ZOHO_EMAIL}
 - Length: ${stage === 'followup_3' ? '60-90' : '160-240'} words
 - Do NOT use placeholder text like [Your Name] or [Company]
-- Sound like a real person wrote this, not a template`;
+- Do NOT use bold, bullets, HTML tags, or any formatting symbols
+- Write as if you personally typed this in Gmail — plain, conversational, human`;
 
     const userPrompt = `Write the ${stage.replace('_', ' ')} email for ${buyer.name} from ${buyer.country} who imports ${cleanProducts[0] || buyer.hsCodes[0]} via HS code ${buyer.hsCodes[0]}.`;
 
@@ -753,58 +758,29 @@ STRICT RULES:
     }) as unknown as BuyerMemory | null;
   }
 
-  // ─── HTML builders ────────────────────────────────────────────────────
-  private buildHtml(buyer: ShortlistBuyer, body: string): string {
-    const tags = buyer.products
-      .slice(0, 6)
-      .map((p) => p.replace(/^RAW MATERIALS FOR[^:]+:/i, '').trim())
-      .map((p) => `<span style="background:#e0e7ff;color:#3730a3;border-radius:4px;padding:3px 8px;font-size:11px;white-space:nowrap">${p}</span>`)
-      .join(' ');
-
-    const htmlBody = body
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/\n\n/g, '</p><p style="margin:0 0 14px">')
-      .replace(/\n/g, '<br>');
-
-    return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:28px 0"><tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-<tr><td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:24px 32px">
-<h1 style="margin:0;color:#fff;font-size:20px;font-weight:700">Aaziko</h1>
-<p style="margin:3px 0 0;color:#93c5fd;font-size:12px">India's B2B Trade Intelligence Platform</p>
-</td></tr>
-<tr><td style="padding:16px 32px 0">
-<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px">
-<div style="font-size:13px;font-weight:600;color:#1e40af">${buyer.name} · ${buyer.country}</div>
-<div style="font-size:11px;color:#3b82f6;margin-top:2px">HS ${buyer.hsCodes[0]} · ${buyer.transactionCount} shipments · $${buyer.totalAmount?.toLocaleString()} · Lead: ${buyer.lead_score}/100</div>
-</div>
-</td></tr>
-<tr><td style="padding:20px 32px 8px;color:#1f2937;font-size:14px;line-height:1.75">
-<p style="margin:0 0 14px">${htmlBody}</p>
-</td></tr>
-<tr><td style="padding:0 32px 20px">
-<div style="display:flex;flex-wrap:wrap;gap:6px">${tags}</div>
-</td></tr>
-<tr><td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:16px 32px">
-<p style="margin:0;font-size:12px;color:#6b7280">
-<strong style="color:#374151">${env.ZOHO_FROM_NAME || 'Arjun'}</strong> · Senior Trade Consultant · Aaziko<br>
-<a href="mailto:${env.ZOHO_EMAIL}" style="color:#2563eb">${env.ZOHO_EMAIL}</a> · <a href="https://aaziko.com" style="color:#2563eb">aaziko.com</a>
-</p>
-</td></tr>
-</table></td></tr></table></body></html>`;
+  // ─── HTML builder — plain human-style, no branding template ─────────
+  // Looks like a real person typed and sent this from their email client.
+  // No headers, no buyer data boxes, no product tags — just the message.
+  private buildHtml(_buyer: ShortlistBuyer, body: string): string {
+    return this.buildSimpleHtml(body);
   }
 
   private buildSimpleHtml(body: string): string {
-    const htmlBody = body
+    const paragraphs = body
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/\n\n/g, '</p><p style="margin:0 0 14px">')
-      .replace(/\n/g, '<br>');
+      .split(/\n{2,}/)
+      .map((p) => `<p style="margin:0 0 16px;line-height:1.7">${p.replace(/\n/g, '<br>')}</p>`)
+      .join('');
 
-    return `<!DOCTYPE html><html><body style="font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.75;padding:24px;max-width:600px">
-<p>${htmlBody}</p>
-<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0">
-<p style="font-size:12px;color:#6b7280"><strong>${env.ZOHO_FROM_NAME || 'Arjun'}</strong> · Aaziko · <a href="https://aaziko.com">aaziko.com</a></p>
-</body></html>`;
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937">
+<div style="max-width:620px;padding:24px 24px 32px">
+${paragraphs}
+</div>
+</body>
+</html>`;
   }
 }
 
