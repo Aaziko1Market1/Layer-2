@@ -71,6 +71,7 @@ export const api = {
   sendOutbound: (data: any) => request<any>('/communicate/outbound', { method: 'POST', body: JSON.stringify(data) }),
 
   // Buyers (shortlist_buyer_seller)
+  getBuyerStats: () => request<{ total: number; withEmail: number }>('/buyers/stats'),
   getBuyers: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<{ buyers: any[]; total: number }>(`/buyers${qs}`);

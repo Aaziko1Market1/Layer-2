@@ -54,6 +54,20 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// ── Buyer stats (total, withEmail counts) ─────────────────────────────
+router.get('/stats', async (_req: Request, res: Response) => {
+  try {
+    const [total, withEmail] = await Promise.all([
+      shortlistBuyerService.listBuyers({ limit: 1, skip: 0 }).then((r) => r.total),
+      shortlistBuyerService.getWithEmailCount('buyer'),
+    ]);
+    res.json({ total, withEmail });
+  } catch (error) {
+    logger.error('GET /buyers/stats failed', { error });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ── Filter options ─────────────────────────────────────────────────────
 router.get('/filters', async (_req: Request, res: Response) => {
   try {

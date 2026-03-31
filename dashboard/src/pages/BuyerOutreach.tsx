@@ -163,6 +163,9 @@ export default function BuyerOutreach() {
   const [outreachStatus, setOutreachStatus] = useState('');
   const [summary, setSummary] = useState<OutreachSummary>({});
 
+  // With-email count (real from DB)
+  const [withEmailCount, setWithEmailCount] = useState<number | null>(null);
+
   // Detail panel
   const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
   const [buyerDetail, setBuyerDetail] = useState<any>(null);
@@ -191,6 +194,7 @@ export default function BuyerOutreach() {
 
   useEffect(() => {
     api.getBuyerFilters().then((f) => setCountries(f.countries || [])).catch(() => {});
+    api.getBuyerStats().then((s) => setWithEmailCount(s.withEmail)).catch(() => {});
   }, []);
 
   const loadBuyers = useCallback(async () => {
@@ -515,7 +519,7 @@ export default function BuyerOutreach() {
   // Stat cards
   const statsCards = [
     { label: 'Total Buyers', value: total.toLocaleString(), icon: <Users size={18} />, color: 'text-indigo-400' },
-    { label: 'With Email', value: '~49', icon: <AtSign size={18} />, color: 'text-emerald-400' },
+    { label: 'With Email', value: withEmailCount === null ? '...' : withEmailCount.toLocaleString(), icon: <AtSign size={18} />, color: 'text-emerald-400' },
     { label: 'Outreach Sent', value: summary.sent || 0, icon: <Mail size={18} />, color: 'text-sky-400' },
     { label: 'Replied', value: summary.replied || 0, icon: <TrendingUp size={18} />, color: 'text-violet-400' },
     { label: 'Interested', value: summary.interested || 0, icon: <Star size={18} />, color: 'text-amber-400' },

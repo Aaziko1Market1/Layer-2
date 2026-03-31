@@ -133,16 +133,9 @@ export class ShortlistBuyerService {
   }> {
     const query: Filter<any> = { type: filters.type || 'buyer' };
 
-    // Email filter — checks TT pipeline fields first, then legacy scraped fields
+    // Email filter — checks all email sources
     if (filters.hasEmail === true) {
-      query.$or = [
-        { primary_email: { $exists: true, $ne: null, $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ } },
-        { all_emails: { $exists: true, $not: { $size: 0 } } },
-        { 'contact_details.email': { $exists: true, $ne: null } },
-        { 'filteredContactData.contactDetails.email': { $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ } },
-        { 'scrapedData.general.emails': { $exists: true, $not: { $size: 0 } } },
-        { 'scrapedData.apollo.email': { $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ } },
-      ];
+      query.$or = this.buildEmailExistsQuery();
     }
 
     if (filters.country) {
@@ -222,6 +215,29 @@ export class ShortlistBuyerService {
       .toArray();
 
     return docs.map((d) => this.normalize(d));
+  }
+
+  // ── Shared email-exists query (all sources) ──────────────────────────
+  private buildEmailExistsQuery(): Filter<any>[] {
+    return [
+      { primary_email: { $exists: true, $ne: null, $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ } },
+      { all_emails: { $exists: true, $not: { $size: 0 } } },
+      { 'contact_details.email': { $exists: true, $ne: null, $ne: '' } },
+      { 'filteredContactData.contactDetails.email': { $exists: true, $ne: null, $ne: '' } },
+      { 'filteredContactData.contactDetails.allEmails': { $exists: true, $not: { $size: 0 } } },
+      { 'scrapedData.general.emails': { $exists: true, $not: { $size: 0 } } },
+      { 'scrapedData.google.emails': { $exists: true, $not: { $size: 0 } } },
+      { 'scrapedData.apollo.email': { $exists: true, $ne: null, $ne: '' } },
+    ];
+  }
+
+  // ── Count buyers with at least one email (any source) ─────────────────
+  async getWithEmailCount(type: 'buyer' | 'seller' = 'buyer'): Promise<number> {
+    return this.mongo.collection('shortlist_buyer_seller').countDocuments({
+      type,
+      name: { $exists: true, $nin: [null, '', 'NULL', 'N/A'] },
+      $or: this.buildEmailExistsQuery(),
+    });
   }
 
   async getCountries(): Promise<string[]> {
