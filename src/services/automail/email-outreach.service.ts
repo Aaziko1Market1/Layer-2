@@ -81,12 +81,29 @@ export class EmailOutreachService {
   async initialize(): Promise<void> {
     this.db = shortlistBuyerService.getDb();
 
-    // Indexes
+    // Indexes for email_outreach_log
     await this.db.collection(COL_OUTREACH).createIndex({ buyer_db_id: 1, stage: 1 });
     await this.db.collection(COL_OUTREACH).createIndex({ status: 1 });
     await this.db.collection(COL_OUTREACH).createIndex({ next_followup_at: 1 });
     await this.db.collection(COL_OUTREACH).createIndex({ buyer_email: 1 });
     await this.db.collection(COL_OUTREACH).createIndex({ sent_at: -1 });
+
+    // Fix: drop stale unique index on buyer_id (causes E11000 when buyer_id is null)
+    try {
+      const memoryIndexes = await this.db.collection(COL_MEMORY).indexes();
+      const staleBuyerIdIndex = memoryIndexes.find(
+        (idx: any) => idx.name === 'buyer_id_1' && idx.unique
+      );
+      if (staleBuyerIdIndex) {
+        await this.db.collection(COL_MEMORY).dropIndex('buyer_id_1');
+        logger.info('Dropped stale unique index buyer_id_1 from ai_agent_memory');
+      }
+    } catch (err) {
+      logger.warn('Could not check/drop stale buyer_id index', { error: (err as Error).message });
+    }
+
+    // Proper unique index on buyer_db_id for ai_agent_memory
+    await this.db.collection(COL_MEMORY).createIndex({ buyer_db_id: 1 }, { unique: true });
 
     logger.info('EmailOutreachService initialized');
   }
@@ -126,18 +143,25 @@ export class EmailOutreachService {
     const result = await this.db.collection(COL_OUTREACH).insertOne(record);
     const insertedId = result.insertedId.toHexString();
 
+    // Manual sends from dashboard bypass working-hours check
     const sendResult = await zohoEmailEngine.sendMessage(email, {
       text: body,
       subject,
       html: this.buildHtml(buyer, body),
-    });
+    }, { skipWorkingHoursCheck: true });
 
     const updateFields: any = sendResult.success
       ? { status: 'sent', sent_at: new Date(), message_id: sendResult.messageId, updated_at: new Date() }
       : { status: 'failed', failed_at: new Date(), fail_reason: sendResult.error, updated_at: new Date() };
 
     await this.db.collection(COL_OUTREACH).updateOne({ _id: result.insertedId }, { $set: updateFields });
-    if (sendResult.success) await this.upsertMemory(buyer, 'initial');
+    if (sendResult.success) {
+      try {
+        await this.upsertMemory(buyer, 'initial');
+      } catch (memErr) {
+        logger.error('Memory upsert failed after successful send', { buyer: buyer.name, error: (memErr as Error).message });
+      }
+    }
 
     return { ...record, _id: insertedId, ...updateFields };
   }
@@ -203,8 +227,12 @@ export class EmailOutreachService {
       { $set: updateFields }
     );
 
-    // Update buyer memory
-    await this.upsertMemory(buyer, 'initial');
+    // Update buyer memory (non-blocking — don't let memory failure crash the send flow)
+    try {
+      await this.upsertMemory(buyer, 'initial');
+    } catch (memErr) {
+      logger.error('Memory upsert failed after initial email', { buyer: buyer.name, error: (memErr as Error).message });
+    }
 
     logger.info('Initial email sent', {
       buyer: buyer.name,
@@ -620,28 +648,54 @@ STRICT RULES:
 
   // ─── Memory upsert ────────────────────────────────────────────────────
   private async upsertMemory(buyer: ShortlistBuyer, stage: FollowUpStage): Promise<void> {
-    const note = `[${new Date().toDateString()}] ${stage} email sent to ${shortlistBuyerService.extractPrimaryEmail(buyer)}`;
-    await this.db.collection(COL_MEMORY).updateOne(
-      { buyer_db_id: buyer._id },
-      {
-        $set: {
-          buyer_db_id: buyer._id,
-          buyer_name: buyer.name,
-          buyer_country: buyer.country,
-          last_email_sent_at: new Date(),
-          overall_status: 'sent',
-          updated_at: new Date(),
+    try {
+      const note = `[${new Date().toDateString()}] ${stage} email sent to ${shortlistBuyerService.extractPrimaryEmail(buyer)}`;
+      await this.db.collection(COL_MEMORY).updateOne(
+        { buyer_db_id: buyer._id },
+        {
+          $set: {
+            buyer_db_id: buyer._id,
+            buyer_id: buyer.buyer_id || null,
+            buyer_name: buyer.name,
+            buyer_country: buyer.country,
+            last_email_sent_at: new Date(),
+            overall_status: 'sent',
+            updated_at: new Date(),
+          },
+          $inc: { emails_sent: 1 } as any,
+          $setOnInsert: {
+            icebreakers_used: [],
+            topics_discussed: [],
+            ai_notes: note,
+            created_at: new Date(),
+          } as any,
         },
-        $inc: { emails_sent: 1 } as any,
-        $setOnInsert: {
-          icebreakers_used: [],
-          topics_discussed: [],
-          ai_notes: note,
-          created_at: new Date(),
-        } as any,
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+    } catch (err: any) {
+      if (err.code === 11000) {
+        logger.warn('Memory upsert duplicate key — retrying without upsert', {
+          buyer: buyer.name,
+          buyer_db_id: buyer._id,
+        });
+        await this.db.collection(COL_MEMORY).updateOne(
+          { buyer_db_id: buyer._id },
+          {
+            $set: {
+              buyer_id: buyer.buyer_id || null,
+              buyer_name: buyer.name,
+              buyer_country: buyer.country,
+              last_email_sent_at: new Date(),
+              overall_status: 'sent',
+              updated_at: new Date(),
+            },
+            $inc: { emails_sent: 1 } as any,
+          }
+        );
+      } else {
+        logger.error('Memory upsert failed', { buyer: buyer.name, error: err.message });
+      }
+    }
   }
 
   // ─── Query helpers ────────────────────────────────────────────────────

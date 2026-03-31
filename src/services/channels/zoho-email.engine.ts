@@ -245,7 +245,7 @@ export class ZohoEmailEngine implements IChannelEngine {
     return htmlMatch ? htmlMatch[1].trim() : undefined;
   }
 
-  async sendMessage(recipient: string, message: ChannelMessage): Promise<DeliveryResult> {
+  async sendMessage(recipient: string, message: ChannelMessage, options?: { skipWorkingHoursCheck?: boolean }): Promise<DeliveryResult> {
     const messageId = uuidv4();
     const now = new Date();
 
@@ -260,7 +260,7 @@ export class ZohoEmailEngine implements IChannelEngine {
     }
 
     try {
-      const canSend = await this.checkRateLimit();
+      const canSend = await this.checkRateLimit(options?.skipWorkingHoursCheck);
       if (!canSend) {
         logger.warn('Rate limit reached, message queued', { recipient });
         return {
@@ -456,7 +456,7 @@ export class ZohoEmailEngine implements IChannelEngine {
     }
   }
 
-  private async checkRateLimit(): Promise<boolean> {
+  private async checkRateLimit(skipWorkingHours = false): Promise<boolean> {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const hour = now.toISOString().split(':')[0];
@@ -473,7 +473,7 @@ export class ZohoEmailEngine implements IChannelEngine {
       return false;
     }
 
-    if (!this.isWithinWorkingHours()) {
+    if (!skipWorkingHours && !this.isWithinWorkingHours()) {
       logger.info('Outside working hours, deferring send');
       return false;
     }
