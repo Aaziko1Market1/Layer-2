@@ -194,7 +194,14 @@ export default function BuyerOutreach() {
 
   useEffect(() => {
     api.getBuyerFilters().then((f) => setCountries(f.countries || [])).catch(() => {});
-    api.getBuyerStats().then((s) => setWithEmailCount(s.withEmail)).catch(() => {});
+
+    // Load immediately then poll every 20s so the count updates live during enrichment
+    const fetchStats = () => {
+      api.getBuyerStats().then((s) => setWithEmailCount(s.withEmail)).catch(() => {});
+    };
+    fetchStats();
+    const statsInterval = setInterval(fetchStats, 20_000);
+    return () => clearInterval(statsInterval);
   }, []);
 
   const loadBuyers = useCallback(async () => {
@@ -516,10 +523,25 @@ export default function BuyerOutreach() {
 
   const totalPages = Math.ceil(total / PER_PAGE);
 
+  // Track initial email count to show delta during enrichment
+  const baseEmailCountRef = useRef<number | null>(null);
+  if (withEmailCount !== null && baseEmailCountRef.current === null) {
+    baseEmailCountRef.current = withEmailCount;
+  }
+  const emailDelta = withEmailCount !== null && baseEmailCountRef.current !== null
+    ? withEmailCount - baseEmailCountRef.current
+    : 0;
+
   // Stat cards
   const statsCards = [
     { label: 'Total Buyers', value: total.toLocaleString(), icon: <Users size={18} />, color: 'text-indigo-400' },
-    { label: 'With Email', value: withEmailCount === null ? '...' : withEmailCount.toLocaleString(), icon: <AtSign size={18} />, color: 'text-emerald-400' },
+    {
+      label: 'With Email',
+      value: withEmailCount === null ? '...' : withEmailCount.toLocaleString(),
+      icon: <AtSign size={18} />,
+      color: 'text-emerald-400',
+      delta: emailDelta,
+    },
     { label: 'Outreach Sent', value: summary.sent || 0, icon: <Mail size={18} />, color: 'text-sky-400' },
     { label: 'Replied', value: summary.replied || 0, icon: <TrendingUp size={18} />, color: 'text-violet-400' },
     { label: 'Interested', value: summary.interested || 0, icon: <Star size={18} />, color: 'text-amber-400' },
@@ -585,9 +607,21 @@ export default function BuyerOutreach() {
             {statsCards.map((s) => (
               <div key={s.label} className="bg-gray-800/60 rounded-xl p-3 flex items-center gap-2">
                 <span className={s.color}>{s.icon}</span>
-                <div>
-                  <div className="text-lg font-bold text-white leading-none">{s.value}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <span className="text-lg font-bold text-white">{s.value}</span>
+                    {'delta' in s && (s as any).delta > 0 && (
+                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-900/40 border border-emerald-700/40 rounded px-1 py-0.5 animate-pulse">
+                        +{(s as any).delta.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-xs text-gray-500">{s.label}</span>
+                    {'delta' in s && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Live — updates every 20s" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
