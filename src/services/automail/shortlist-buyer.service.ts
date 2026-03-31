@@ -217,17 +217,29 @@ export class ShortlistBuyerService {
     return docs.map((d) => this.normalize(d));
   }
 
-  // ── Shared email-exists query (all sources) ──────────────────────────
+  // ── Shared email-exists query (all sources, strict type checks) ──────
+  // IMPORTANT: Use $type:'string' + $regex to avoid false-positives from
+  // null/undefined fields. Do NOT use $ne:null,$ne:'' (JS duplicate-key bug).
+  // Use $type:'array' for array fields to exclude null/empty entries.
   private buildEmailExistsQuery(): Filter<any>[] {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return [
-      { primary_email: { $exists: true, $ne: null, $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ } },
-      { all_emails: { $exists: true, $not: { $size: 0 } } },
-      { 'contact_details.email': { $exists: true, $ne: null, $ne: '' } },
-      { 'filteredContactData.contactDetails.email': { $exists: true, $ne: null, $ne: '' } },
-      { 'filteredContactData.contactDetails.allEmails': { $exists: true, $not: { $size: 0 } } },
-      { 'scrapedData.general.emails': { $exists: true, $not: { $size: 0 } } },
-      { 'scrapedData.google.emails': { $exists: true, $not: { $size: 0 } } },
-      { 'scrapedData.apollo.email': { $exists: true, $ne: null, $ne: '' } },
+      // TT pipeline — primary_email (string with valid format)
+      { primary_email: { $type: 'string', $regex: emailRegex } },
+      // TT pipeline — all_emails (non-empty array of strings)
+      { all_emails: { $type: 'array', $not: { $size: 0 } } },
+      // TT pipeline — contact_details array, at least one valid email
+      { contact_details: { $elemMatch: { email: { $type: 'string', $regex: emailRegex } } } },
+      // Legacy scraper — filteredContactData nested email
+      { 'filteredContactData.contactDetails.email': { $type: 'string', $regex: emailRegex } },
+      // Legacy scraper — filteredContactData allEmails array
+      { 'filteredContactData.contactDetails.allEmails': { $type: 'array', $not: { $size: 0 } } },
+      // General scraper emails
+      { 'scrapedData.general.emails': { $type: 'array', $not: { $size: 0 } } },
+      // Google scraper emails
+      { 'scrapedData.google.emails': { $type: 'array', $not: { $size: 0 } } },
+      // Apollo scraper — only if actual valid email string
+      { 'scrapedData.apollo.email': { $type: 'string', $regex: emailRegex } },
     ];
   }
 
