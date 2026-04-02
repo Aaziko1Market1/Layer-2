@@ -17,6 +17,7 @@ export interface ModelConfigs {
   intent: ModelConfig;
   compliance: ModelConfig;
   complianceFallback: ModelConfig;
+  supportChat: ModelConfig;
 }
 
 export const modelConfigs: ModelConfigs = {
@@ -72,6 +73,14 @@ export const modelConfigs: ModelConfigs = {
     apiKey: env.COMPLIANCE_FALLBACK_BASE_URL ? undefined : undefined,
     timeout: 20000,
     maxRetries: 3,
+    maxTokens: 1024,
+  },
+  supportChat: {
+    baseURL: env.SUPPORT_CHAT_BASE_URL,
+    model: env.SUPPORT_CHAT_MODEL,
+    apiKey: env.SUPPORT_CHAT_API_KEY || undefined,
+    timeout: 60000,
+    maxRetries: 2,
     maxTokens: 1024,
   },
 };

@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aaziko Support Chat</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+#aaziko-widget-container {
+  --az-primary: #1B4F72;
+  --az-primary-light: #2471A3;
+  --az-accent: #F39C12;
+  --az-bg: #FFFFFF;
+  --az-bg-light: #F8F9FA;
+  --az-text: #2C3E50;
+  --az-text-light: #7F8C8D;
+  --az-border: #E5E8EB;
+  --az-success: #27AE60;
+  --az-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  --az-radius: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  position: fixed;
+  z-index: 999999;
+}
+
+/* ── FLOATING BUTTON ─────────────────────────────────── */
+#az-chat-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--az-primary), var(--az-primary-light));
+  border: none;
+  cursor: grab;
+  box-shadow: 0 4px 20px rgba(27,79,114,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 1000000;
+  touch-action: none;
+  user-select: none;
+}
+#az-chat-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px rgba(27,79,114,0.5);
+}
+#az-chat-btn:active { cursor: grabbing; }
+#az-chat-btn svg { width: 28px; height: 28px; fill: #fff; pointer-events: none; }
+
+#az-chat-btn .az-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  background: var(--az-accent);
+  border-radius: 50%;
+  border: 2px solid #fff;
+  display: none;
+}
+#az-chat-btn.az-has-unread .az-badge { display: block; }
+
+/* ── CHAT DIALOG ─────────────────────────────────────── */
+#az-chat-dialog {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  height: 560px;
+  max-height: calc(100vh - 120px);
+  background: var(--az-bg);
+  border-radius: var(--az-radius);
+  box-shadow: var(--az-shadow);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1000000;
+  border: 1px solid var(--az-border);
+  animation: az-slide-up 0.3s ease;
+}
+#az-chat-dialog.az-open { display: flex; }
+
+@keyframes az-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Header */
+.az-header {
+  background: linear-gradient(135deg, var(--az-primary), var(--az-primary-light));
+  color: #fff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.az-header-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.az-header-info { flex: 1; min-width: 0; }
+.az-header-name { font-size: 16px; font-weight: 600; }
+.az-header-status { font-size: 12px; opacity: 0.85; display: flex; align-items: center; gap: 4px; }
+.az-header-status::before { content: ''; width: 6px; height: 6px; background: var(--az-success); border-radius: 50%; }
+.az-close-btn {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.az-close-btn:hover { background: rgba(255,255,255,0.3); }
+
+/* Role selector */
+.az-role-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--az-bg-light);
+  border-bottom: 1px solid var(--az-border);
+  flex-shrink: 0;
+}
+.az-role-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--az-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--az-text-light);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.az-role-btn.az-active {
+  background: var(--az-primary);
+  color: #fff;
+  border-color: var(--az-primary);
+}
+.az-role-btn:hover:not(.az-active) {
+  border-color: var(--az-primary-light);
+  color: var(--az-primary);
+}
+
+/* Messages area */
+.az-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+.az-messages::-webkit-scrollbar { width: 4px; }
+.az-messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+
+.az-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+.az-msg-user {
+  align-self: flex-end;
+  background: var(--az-primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.az-msg-bot {
+  align-self: flex-start;
+  background: var(--az-bg-light);
+  color: var(--az-text);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--az-border);
+}
+.az-msg-time {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+.az-msg-user .az-msg-time { text-align: right; }
+
+/* Typing indicator */
+.az-typing {
+  align-self: flex-start;
+  padding: 10px 14px;
+  background: var(--az-bg-light);
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--az-border);
+  display: none;
+}
+.az-typing.az-show { display: flex; gap: 4px; align-items: center; }
+.az-typing-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--az-text-light);
+  border-radius: 50%;
+  animation: az-bounce 1.4s infinite;
+}
+.az-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.az-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes az-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+/* Welcome message */
+.az-welcome {
+  text-align: center;
+  padding: 16px;
+  color: var(--az-text-light);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.az-welcome strong { color: var(--az-text); display: block; font-size: 15px; margin-bottom: 6px; }
+
+/* Quick actions */
+.az-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 12px;
+  flex-shrink: 0;
+}
+.az-quick-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--az-border);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--az-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.az-quick-btn:hover {
+  background: var(--az-primary);
+  color: #fff;
+  border-color: var(--az-primary);
+}
+
+/* Input area */
+.az-input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--az-border);
+  background: var(--az-bg);
+  flex-shrink: 0;
+}
+#az-input {
+  flex: 1;
+  border: 1px solid var(--az-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  min-height: 42px;
+  max-height: 100px;
+  outline: none;
+  transition: border-color 0.2s;
+  line-height: 1.4;
+  color: var(--az-text);
+}
+#az-input:focus { border-color: var(--az-primary-light); }
+#az-input::placeholder { color: var(--az-text-light); }
+
+#az-send-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--az-primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.1s;
+  flex-shrink: 0;
+}
+#az-send-btn:hover { background: var(--az-primary-light); }
+#az-send-btn:active { transform: scale(0.95); }
+#az-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#az-send-btn svg { width: 18px; height: 18px; fill: #fff; pointer-events: none; }
+
+/* Powered by */
+.az-powered {
+  text-align: center;
+  padding: 6px;
+  font-size: 10px;
+  color: var(--az-text-light);
+  background: var(--az-bg-light);
+  border-top: 1px solid var(--az-border);
+  flex-shrink: 0;
+}
+.az-powered a { color: var(--az-primary); text-decoration: none; font-weight: 600; }
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  #az-chat-dialog {
+    bottom: 0;
+    right: 0;
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="aaziko-widget-container">
+  <!-- Floating draggable button -->
+  <button id="az-chat-btn" title="Aaziko Support">
+    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+    <span class="az-badge"></span>
+  </button>
+
+  <!-- Chat Dialog -->
+  <div id="az-chat-dialog">
+    <!-- Header -->
+    <div class="az-header">
+      <div class="az-header-avatar">A</div>
+      <div class="az-header-info">
+        <div class="az-header-name">Aaziko Support</div>
+        <div class="az-header-status">Online — powered by AI</div>
+      </div>
+      <button class="az-close-btn" id="az-close-btn">&times;</button>
+    </div>
+
+    <!-- Role Selector -->
+    <div class="az-role-bar">
+      <button class="az-role-btn az-active" data-role="visitor">Visitor</button>
+      <button class="az-role-btn" data-role="buyer">Buyer</button>
+      <button class="az-role-btn" data-role="seller">Seller</button>
+    </div>
+
+    <!-- Messages -->
+    <div class="az-messages" id="az-messages">
+      <div class="az-welcome">
+        <strong>Welcome to Aaziko Support!</strong>
+        Ask me anything about sourcing from India, our platform, trade processes, pricing, shipping, quality inspection, or getting started.
+      </div>
+    </div>
+
+    <!-- Typing indicator -->
+    <div class="az-typing" id="az-typing">
+      <div class="az-typing-dot"></div>
+      <div class="az-typing-dot"></div>
+      <div class="az-typing-dot"></div>
+    </div>
+
+    <!-- Quick action buttons -->
+    <div class="az-quick-actions" id="az-quick-actions">
+      <button class="az-quick-btn" data-q="What is Aaziko?">What is Aaziko?</button>
+      <button class="az-quick-btn" data-q="How does sourcing work?">How sourcing works</button>
+      <button class="az-quick-btn" data-q="What are the payment terms?">Payment terms</button>
+      <button class="az-quick-btn" data-q="How is quality assured?">Quality assurance</button>
+      <button class="az-quick-btn" data-q="How do I get started as a seller?">Join as seller</button>
+    </div>
+
+    <!-- Input area -->
+    <div class="az-input-area">
+      <textarea id="az-input" placeholder="Type your question..." rows="1"></textarea>
+      <button id="az-send-btn" title="Send">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+
+    <!-- Powered by -->
+    <div class="az-powered">
+      Powered by <a href="https://aaziko.com" target="_blank">Aaziko AI</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const API_BASE = window.AAZIKO_WIDGET_API || (window.location.origin + '/api/support-chat');
+  let sessionId = localStorage.getItem('az_session_id') || null;
+  let userRole = localStorage.getItem('az_user_role') || 'visitor';
+  let isOpen = false;
+  let isSending = false;
+
+  const btn = document.getElementById('az-chat-btn');
+  const dialog = document.getElementById('az-chat-dialog');
+  const closeBtn = document.getElementById('az-close-btn');
+  const messagesEl = document.getElementById('az-messages');
+  const typingEl = document.getElementById('az-typing');
+  const inputEl = document.getElementById('az-input');
+  const sendBtn = document.getElementById('az-send-btn');
+  const quickActions = document.getElementById('az-quick-actions');
+  const roleBtns = document.querySelectorAll('.az-role-btn');
+
+  // ── DRAGGABLE BUTTON ──────────────────────────────────
+  let isDragging = false;
+  let dragStartX, dragStartY, btnStartX, btnStartY;
+  let dragMoved = false;
+
+  btn.addEventListener('pointerdown', function(e) {
+    isDragging = true;
+    dragMoved = false;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = btn.getBoundingClientRect();
+    btnStartX = rect.left;
+    btnStartY = rect.top;
+    btn.setPointerCapture(e.pointerId);
+    btn.style.transition = 'none';
+  });
+
+  document.addEventListener('pointermove', function(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    if (!dragMoved) return;
+
+    let newX = btnStartX + dx;
+    let newY = btnStartY + dy;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    newX = Math.max(0, Math.min(w - 60, newX));
+    newY = Math.max(0, Math.min(h - 60, newY));
+
+    btn.style.left = newX + 'px';
+    btn.style.top = newY + 'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  });
+
+  document.addEventListener('pointerup', function() {
+    if (!isDragging) return;
+    isDragging = false;
+    btn.style.transition = '';
+    if (!dragMoved) toggleChat();
+  });
+
+  // ── TOGGLE CHAT ───────────────────────────────────────
+  function toggleChat() {
+    isOpen = !isOpen;
+    if (isOpen) {
+      dialog.classList.add('az-open');
+      btn.classList.remove('az-has-unread');
+      inputEl.focus();
+      scrollToBottom();
+    } else {
+      dialog.classList.remove('az-open');
+    }
+  }
+
+  closeBtn.addEventListener('click', function() {
+    isOpen = false;
+    dialog.classList.remove('az-open');
+  });
+
+  // ── ROLE SELECTOR ─────────────────────────────────────
+  roleBtns.forEach(function(rb) {
+    rb.addEventListener('click', function() {
+      roleBtns.forEach(function(b) { b.classList.remove('az-active'); });
+      rb.classList.add('az-active');
+      userRole = rb.dataset.role;
+      localStorage.setItem('az_user_role', userRole);
+    });
+  });
+
+  // set active role on load
+  roleBtns.forEach(function(rb) {
+    if (rb.dataset.role === userRole) rb.classList.add('az-active');
+    else rb.classList.remove('az-active');
+  });
+
+  // ── QUICK ACTIONS ─────────────────────────────────────
+  quickActions.addEventListener('click', function(e) {
+    const qb = e.target.closest('.az-quick-btn');
+    if (!qb) return;
+    const question = qb.dataset.q;
+    if (question) sendMessage(question);
+  });
+
+  // ── INPUT HANDLING ────────────────────────────────────
+  inputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+
+  inputEl.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+  });
+
+  sendBtn.addEventListener('click', handleSend);
+
+  function handleSend() {
+    const text = inputEl.value.trim();
+    if (!text || isSending) return;
+    sendMessage(text);
+  }
+
+  // ── SEND MESSAGE ──────────────────────────────────────
+  async function sendMessage(text) {
+    if (isSending) return;
+    isSending = true;
+    sendBtn.disabled = true;
+
+    addMessage(text, 'user');
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+
+    // hide quick actions after first message
+    quickActions.style.display = 'none';
+
+    showTyping(true);
+
+    try {
+      const response = await fetch(API_BASE + '/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          message: text,
+          userRole: userRole,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        sessionId = data.sessionId;
+        localStorage.setItem('az_session_id', sessionId);
+        addMessage(data.reply, 'bot');
+      } else {
+        addMessage(data.error || 'Sorry, something went wrong. Please try again.', 'bot');
+      }
+    } catch (err) {
+      addMessage('Unable to connect to support. Please check your internet connection and try again.', 'bot');
+    } finally {
+      showTyping(false);
+      isSending = false;
+      sendBtn.disabled = false;
+    }
+  }
+
+  // ── ADD MESSAGE TO UI ─────────────────────────────────
+  function addMessage(text, sender) {
+    // remove welcome on first message
+    const welcome = messagesEl.querySelector('.az-welcome');
+    if (welcome) welcome.remove();
+
+    const div = document.createElement('div');
+    div.className = 'az-msg ' + (sender === 'user' ? 'az-msg-user' : 'az-msg-bot');
+
+    const contentEl = document.createElement('div');
+    contentEl.textContent = text;
+    div.appendChild(contentEl);
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'az-msg-time';
+    const now = new Date();
+    timeEl.textContent = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    div.appendChild(timeEl);
+
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function showTyping(show) {
+    if (show) {
+      typingEl.classList.add('az-show');
+      messagesEl.appendChild(typingEl);
+    } else {
+      typingEl.classList.remove('az-show');
+    }
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    requestAnimationFrame(function() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+})();
+</script>
+</body>
+</html>

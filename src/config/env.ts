@@ -26,6 +26,11 @@ const envSchema = z.object({
   INTENT_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
   INTENT_MODEL: z.string().default('qwen3-8b-aaziko:latest'),
 
+  // Support Chat Widget (DeepInfra Qwen 2.5)
+  SUPPORT_CHAT_BASE_URL: z.string().url().default('https://api.deepinfra.com/v1/openai'),
+  SUPPORT_CHAT_MODEL: z.string().default('Qwen/Qwen2.5-72B-Instruct'),
+  SUPPORT_CHAT_API_KEY: z.string().default(''),
+
   // Compliance
   COMPLIANCE_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
   COMPLIANCE_MODEL: z.string().default('qwen3-14b-compliance:latest'),

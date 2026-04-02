@@ -17,6 +17,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import handoffRoutes from './routes/handoff.routes';
 import automailRoutes from './routes/automail.routes';
 import buyersRoutes from './routes/buyers.routes';
+import supportChatRoutes from './routes/support-chat.routes';
 
 // Middleware
 import { apiRateLimiter, webhookRateLimiter, communicateRateLimiter } from './middleware/rate-limiter';
@@ -41,6 +42,7 @@ import { buyerTrackerService } from './services/automail/buyer-tracker.service';
 import { autoReplyEngine } from './services/automail/auto-reply.engine';
 import { shortlistBuyerService } from './services/automail/shortlist-buyer.service';
 import { emailOutreachService } from './services/automail/email-outreach.service';
+import { supportChatService } from './services/support-chat/support-chat.service';
 
 const app = express();
 const server = http.createServer(app);
@@ -70,6 +72,15 @@ app.use('/api/analytics', apiRateLimiter(), analyticsRoutes);
 app.use('/api/dashboard/handoff-queue', apiRateLimiter(), handoffRoutes);
 app.use('/api/automail', apiRateLimiter(), automailRoutes);
 app.use('/api/buyers', apiRateLimiter(), buyersRoutes);
+app.use('/api/support-chat', communicateRateLimiter(), supportChatRoutes);
+
+// Serve the embeddable widget files
+const widgetDir = path.join(__dirname, '..', 'src', 'widget');
+const widgetDistDir = path.join(__dirname, 'widget');
+const resolvedWidgetDir = fs.existsSync(widgetDistDir) ? widgetDistDir : widgetDir;
+if (fs.existsSync(resolvedWidgetDir)) {
+  app.use('/widget', express.static(resolvedWidgetDir));
+}
 
 // Health check
 app.get('/health', async (_req, res) => {
@@ -125,6 +136,9 @@ async function bootstrap(): Promise<void> {
     // ShortlistBuyer must be ready before EmailOutreach (getDb dependency)
     await shortlistBuyerService.initialize();
     await emailOutreachService.initialize();
+
+    // Support Chat Widget (DeepInfra Qwen 2.5)
+    supportChatService.initialize();
 
     logger.info('All services initialized');
   } catch (error) {
@@ -261,6 +275,7 @@ async function shutdown(): Promise<void> {
     campaignService.close(),
     buyerTrackerService.close(),
     autoReplyEngine.close(),
+    supportChatService.close(),
   ]);
   logger.info('Shutdown complete');
   process.exit(0);

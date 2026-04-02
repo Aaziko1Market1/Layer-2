@@ -3,6 +3,7 @@ import {
   LayoutDashboard, MessageSquare, Send, BarChart3, FlaskConical,
   Linkedin, Activity, Settings, UserCheck, Users, Mail, Inbox,
 } from 'lucide-react';
+import AdminSupportChat from './AdminSupportChat';
 
 const navItems = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
@@ -63,6 +64,9 @@ export default function Layout() {
       <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
+
+      {/* Admin Support Chat Widget — bottom-left, role locked to admin */}
+      <AdminSupportChat />
     </div>
   );
 }

@@ -44,6 +44,8 @@ RUN npm ci --omit=dev
 COPY --from=backend-builder /app/dist/ dist/
 # Prompt markdown files (read at runtime)
 COPY --from=backend-builder /app/src/prompts/ dist/prompts/
+# Support chat widget files
+COPY --from=backend-builder /app/src/widget/ dist/widget/
 # Dashboard static files → served by Express
 COPY --from=dashboard-builder /app/dashboard/dist/ dashboard/dist/
 
