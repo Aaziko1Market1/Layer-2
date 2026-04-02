@@ -76,9 +76,10 @@ export const modelConfigs: ModelConfigs = {
     maxTokens: 1024,
   },
   supportChat: {
-    baseURL: env.SUPPORT_CHAT_BASE_URL,
-    model: env.SUPPORT_CHAT_MODEL,
-    apiKey: env.SUPPORT_CHAT_API_KEY || undefined,
+    // Falls back to COMM_MID if SUPPORT_CHAT vars not set (same Qwen2.5 model on DeepInfra)
+    baseURL: env.SUPPORT_CHAT_BASE_URL || env.COMM_MID_BASE_URL,
+    model: env.SUPPORT_CHAT_MODEL || env.COMM_MID_MODEL,
+    apiKey: env.SUPPORT_CHAT_API_KEY || env.COMM_MID_API_KEY || undefined,
     timeout: 60000,
     maxRetries: 2,
     maxTokens: 1024,
